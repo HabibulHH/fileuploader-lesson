@@ -3,6 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const fileTypeValidator = require("../middleware/fileTypeValidator");
 const { enqueue } = require("../services/uploadQueue");
+const { uploadRateLimit, duplicateFileLimit } = require("../middleware/rate-limit");
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ function handleMulterError(err, req, res, next) {
 }
 
 // Single file upload
-router.post("/single", upload.single("file"), handleMulterError, (req, res) => {
+router.post("/single", upload.single("file"), handleMulterError, uploadRateLimit, duplicateFileLimit, (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded" });
   }
@@ -56,7 +57,7 @@ router.post("/single", upload.single("file"), handleMulterError, (req, res) => {
 });
 
 // Multiple files upload (up to 5)
-router.post("/multiple", upload.array("files", 5), handleMulterError, (req, res) => {
+router.post("/multiple", upload.array("files", 5), handleMulterError, uploadRateLimit, duplicateFileLimit, (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: "No files uploaded" });
   }
