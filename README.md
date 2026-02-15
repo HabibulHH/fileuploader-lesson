@@ -500,10 +500,10 @@ Content-Type: image/png
 
 ```bash
 # .env file
-DO_SPACES_KEY=DO80147F4ULQMKFRXMHA
-DO_SPACES_SECRET=TpWcWPs8hGULZUvDzfrrBVTZwyJ9lDukzAfoNvUChpg
+DO_SPACES_KEY=your_access_key_here
+DO_SPACES_SECRET=your_secret_key_here
 DO_SPACES_ENDPOINT=https://sgp1.digitaloceanspaces.com
-DO_SPACES_BUCKET=testbuckets
+DO_SPACES_BUCKET=your_bucket_name
 DO_SPACES_REGION=sgp1
 ```
 
@@ -512,7 +512,7 @@ DO_SPACES_REGION=sgp1
 require("dotenv").config();
 
 // এরপর যেকোনো জায়গায়:
-process.env.DO_SPACES_KEY  // → "DO80147F4ULQMKFRXMHA"
+process.env.DO_SPACES_KEY  // → তোমার actual key value আসবে
 ```
 
 ---
