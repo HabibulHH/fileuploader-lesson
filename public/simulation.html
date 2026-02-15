@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTTP File Upload Simulation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #e0e0e0; padding: 20px; }
+    h1 { text-align: center; color: #00ff88; margin-bottom: 10px; font-size: 22px; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 30px; font-size: 13px; }
+
+    .container { display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; }
+
+    /* Boxes */
+    .box { border: 2px solid #333; border-radius: 8px; padding: 15px; width: 280px; min-height: 300px; position: relative; }
+    .box h2 { font-size: 14px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #333; }
+    .client { border-color: #0088ff; }
+    .client h2 { color: #0088ff; }
+    .http { border-color: #ffaa00; }
+    .http h2 { color: #ffaa00; }
+    .multer { border-color: #ff4488; }
+    .multer h2 { color: #ff4488; }
+    .disk { border-color: #00ff88; }
+    .disk h2 { color: #00ff88; }
+
+    /* Arrow between boxes */
+    .arrow { display: flex; align-items: center; font-size: 24px; color: #555; align-self: center; }
+
+    /* Upload area */
+    .upload-area { border: 2px dashed #444; border-radius: 6px; padding: 20px; text-align: center; cursor: pointer; transition: 0.3s; margin-bottom: 10px; }
+    .upload-area:hover { border-color: #0088ff; background: #0088ff10; }
+    .upload-area.has-file { border-color: #00ff88; background: #00ff8810; }
+    .upload-area input { display: none; }
+    .file-info { font-size: 11px; color: #888; margin-top: 8px; }
+
+    #startBtn { width: 100%; padding: 10px; background: #0088ff; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 13px; margin-top: 10px; }
+    #startBtn:hover { background: #0066cc; }
+    #startBtn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    /* Log area */
+    .log { font-size: 11px; line-height: 1.6; max-height: 220px; overflow-y: auto; }
+    .log div { padding: 2px 0; border-bottom: 1px solid #1a1a1a; }
+    .log .header { color: #ffaa00; }
+    .log .chunk { color: #0088ff; }
+    .log .boundary { color: #ff4488; }
+    .log .binary { color: #00ff88; }
+    .log .done { color: #00ff88; font-weight: bold; }
+    .log .error { color: #ff4444; }
+
+    /* Chunk animation */
+    .chunk-visual { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 10px; min-height: 40px; }
+    .chunk-block { width: 18px; height: 18px; border-radius: 3px; opacity: 0; transition: opacity 0.3s; font-size: 7px; display: flex; align-items: center; justify-content: center; color: #000; }
+    .chunk-block.active { opacity: 1; }
+    .chunk-block.pending { background: #ffaa00; }
+    .chunk-block.received { background: #0088ff; }
+    .chunk-block.parsed { background: #ff4488; }
+    .chunk-block.saved { background: #00ff88; }
+
+    /* Progress bar */
+    .progress { height: 4px; background: #222; border-radius: 2px; margin-top: 8px; overflow: hidden; }
+    .progress-bar { height: 100%; width: 0%; border-radius: 2px; transition: width 0.3s; }
+
+    /* File on disk */
+    .saved-file { background: #00ff8815; border: 1px solid #00ff8844; border-radius: 4px; padding: 8px; margin-top: 8px; font-size: 11px; display: none; }
+    .saved-file .fname { color: #00ff88; }
+
+    /* Legend */
+    .legend { display: flex; gap: 15px; justify-content: center; margin-top: 25px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+    /* Real upload section */
+    .real-upload { max-width: 900px; margin: 30px auto 0; border: 2px solid #333; border-radius: 8px; padding: 15px; }
+    .real-upload h2 { color: #ffaa00; font-size: 14px; margin-bottom: 10px; }
+    #realResult { margin-top: 10px; font-size: 12px; padding: 10px; background: #111; border-radius: 4px; display: none; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+<h1>HTTP File Upload - How It Works</h1>
+<p class="subtitle">Select a file and click "Start Upload Simulation" to see the full journey</p>
+
+<div class="container">
+  <!-- CLIENT -->
+  <div class="box client">
+    <h2>1. CLIENT (Browser)</h2>
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+      <div>Click to select file</div>
+      <input type="file" id="fileInput" />
+      <div class="file-info" id="fileInfo"></div>
+    </div>
+    <div id="clientLog" class="log"></div>
+    <button id="startBtn" disabled onclick="startSimulation()">Start Upload Simulation</button>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <!-- HTTP -->
+  <div class="box http">
+    <h2>2. HTTP REQUEST (Stream)</h2>
+    <div id="httpLog" class="log"></div>
+    <div class="chunk-visual" id="chunkVisual"></div>
+    <div class="progress"><div class="progress-bar" id="httpProgress" style="background: #ffaa00;"></div></div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <!-- MULTER -->
+  <div class="box multer">
+    <h2>3. MULTER (Parser)</h2>
+    <div id="multerLog" class="log"></div>
+    <div class="chunk-visual" id="multerChunkVisual"></div>
+    <div class="progress"><div class="progress-bar" id="multerProgress" style="background: #ff4488;"></div></div>
+  </div>
+
+  <div class="arrow">→</div>
+
+  <!-- DISK -->
+  <div class="box disk">
+    <h2>4. DISK (Saved File)</h2>
+    <div id="diskLog" class="log"></div>
+    <div class="progress"><div class="progress-bar" id="diskProgress" style="background: #00ff88;"></div></div>
+    <div class="saved-file" id="savedFile">
+      <div>File saved:</div>
+      <div class="fname" id="savedFileName"></div>
+      <div id="savedFileSize"></div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#ffaa00"></div> Sending chunks</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#0088ff"></div> Received by server</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ff4488"></div> Parsed by Multer</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#00ff88"></div> Saved to disk</div>
+</div>
+
+<!-- REAL UPLOAD -->
+<div class="real-upload">
+  <h2>Try Real Upload</h2>
+  <form id="realForm">
+    <input type="file" id="realFile" style="margin-bottom:10px" />
+    <button type="submit" style="padding:6px 16px; background:#00ff88; color:#000; border:none; border-radius:4px; cursor:pointer; font-family:inherit;">Upload to Server</button>
+  </form>
+  <pre id="realResult"></pre>
+</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const uploadArea = document.getElementById('uploadArea');
+  const startBtn = document.getElementById('startBtn');
+  let selectedFile = null;
+
+  fileInput.addEventListener('change', (e) => {
+    selectedFile = e.target.files[0];
+    if (selectedFile) {
+      uploadArea.classList.add('has-file');
+      document.getElementById('fileInfo').innerHTML =
+        `<strong>${selectedFile.name}</strong><br>${formatBytes(selectedFile.size)} | ${selectedFile.type || 'unknown'}`;
+      startBtn.disabled = false;
+    }
+  });
+
+  function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+
+  function log(id, text, cls = '') {
+    const el = document.getElementById(id);
+    const div = document.createElement('div');
+    div.className = cls;
+    div.textContent = text;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function startSimulation() {
+    if (!selectedFile) return;
+    startBtn.disabled = true;
+
+    // Clear previous
+    ['clientLog','httpLog','multerLog','diskLog'].forEach(id => document.getElementById(id).innerHTML = '');
+    ['chunkVisual','multerChunkVisual'].forEach(id => document.getElementById(id).innerHTML = '');
+    ['httpProgress','multerProgress','diskProgress'].forEach(id => document.getElementById(id).style.width = '0%');
+    document.getElementById('savedFile').style.display = 'none';
+
+    const fileName = selectedFile.name;
+    const fileSize = selectedFile.size;
+    const mimeType = selectedFile.type || 'application/octet-stream';
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substr(2, 16);
+    const CHUNK_SIZE = 65536;
+    const totalChunks = Math.max(1, Math.ceil(fileSize / CHUNK_SIZE));
+    const displayChunks = Math.min(totalChunks, 30); // cap visual blocks
+
+    // === STEP 1: Client prepares ===
+    log('clientLog', `Selected: ${fileName}`, 'header');
+    log('clientLog', `Size: ${formatBytes(fileSize)}`);
+    log('clientLog', `Type: ${mimeType}`);
+    await sleep(400);
+    log('clientLog', `Encoding as multipart/form-data...`);
+    await sleep(300);
+    log('clientLog', `Boundary: ${boundary}`, 'boundary');
+    await sleep(300);
+    log('clientLog', `Splitting into ${totalChunks} chunks (~64KB each)`, 'chunk');
+
+    // Create chunk blocks for HTTP
+    for (let i = 0; i < displayChunks; i++) {
+      const block = document.createElement('div');
+      block.className = 'chunk-block';
+      block.id = `http-chunk-${i}`;
+      block.textContent = i + 1;
+      document.getElementById('chunkVisual').appendChild(block);
+    }
+
+    await sleep(500);
+
+    // === STEP 2: HTTP sends headers then streams body ===
+    log('httpLog', `POST /upload/single HTTP/1.1`, 'header');
+    await sleep(200);
+    log('httpLog', `Host: localhost:3000`, 'header');
+    await sleep(100);
+    log('httpLog', `Content-Type: multipart/form-data;`, 'header');
+    log('httpLog', `  boundary=${boundary}`, 'boundary');
+    await sleep(100);
+    log('httpLog', `Content-Length: ${fileSize}`, 'header');
+    await sleep(400);
+    log('httpLog', `--- Body stream starts ---`, 'chunk');
+
+    // Read actual file bytes for hex display
+    const reader = new FileReader();
+    const fileBuffer = await new Promise(resolve => {
+      reader.onload = () => resolve(new Uint8Array(reader.result));
+      reader.readAsArrayBuffer(selectedFile);
+    });
+
+    // Stream chunks
+    for (let i = 0; i < displayChunks; i++) {
+      const offset = Math.floor((i / displayChunks) * fileSize);
+      const hexBytes = Array.from(fileBuffer.slice(offset, offset + 8))
+        .map(b => b.toString(16).padStart(2, '0')).join(' ');
+
+      // HTTP receives chunk
+      const httpBlock = document.getElementById(`http-chunk-${i}`);
+      httpBlock.classList.add('active', 'pending');
+      document.getElementById('httpProgress').style.width = `${((i + 1) / displayChunks) * 100}%`;
+
+      if (i === 0) {
+        log('httpLog', `--${boundary}`, 'boundary');
+        log('httpLog', `Content-Disposition: form-data;`, 'header');
+        log('httpLog', `  name="file"; filename="${fileName}"`, 'header');
+        log('httpLog', `Content-Type: ${mimeType}`, 'header');
+        await sleep(300);
+      }
+
+      log('httpLog', `chunk[${i}]: ${hexBytes}...`, 'binary');
+      await sleep(80);
+      httpBlock.classList.remove('pending');
+      httpBlock.classList.add('received');
+    }
+
+    log('httpLog', `--${boundary}--`, 'boundary');
+    log('httpLog', `req.on("end") fired`, 'done');
+
+    await sleep(300);
+
+    // === STEP 3: Multer parses ===
+    log('multerLog', `Received stream from HTTP`, 'header');
+    await sleep(200);
+    log('multerLog', `Reading Content-Type header...`, '');
+    await sleep(200);
+    log('multerLog', `Found boundary: ${boundary.substring(0, 20)}...`, 'boundary');
+    await sleep(300);
+    log('multerLog', `Parsing multipart body...`, '');
+
+    // Create multer chunk blocks
+    for (let i = 0; i < displayChunks; i++) {
+      const block = document.createElement('div');
+      block.className = 'chunk-block';
+      block.id = `multer-chunk-${i}`;
+      block.textContent = i + 1;
+      document.getElementById('multerChunkVisual').appendChild(block);
+    }
+
+    await sleep(200);
+
+    for (let i = 0; i < displayChunks; i++) {
+      const block = document.getElementById(`multer-chunk-${i}`);
+      block.classList.add('active', 'parsed');
+      document.getElementById('multerProgress').style.width = `${((i + 1) / displayChunks) * 100}%`;
+      await sleep(50);
+    }
+
+    log('multerLog', `Found field: "file"`, 'chunk');
+    await sleep(200);
+    log('multerLog', `originalname: ${fileName}`, '');
+    log('multerLog', `mimetype: ${mimeType}`, '');
+    log('multerLog', `size: ${fileSize} bytes`, '');
+    await sleep(200);
+    log('multerLog', `Extracted binary data ✓`, 'done');
+
+    await sleep(300);
+
+    // === STEP 4: Save to disk ===
+    const savedName = `${Date.now()}-${fileName}`;
+    log('diskLog', `diskStorage.destination:`, 'header');
+    log('diskLog', `  /public/uploads/`, '');
+    await sleep(200);
+    log('diskLog', `diskStorage.filename:`, 'header');
+    log('diskLog', `  ${savedName}`, 'binary');
+    await sleep(300);
+    log('diskLog', `Writing to disk...`, '');
+
+    for (let i = 0; i <= 100; i += 5) {
+      document.getElementById('diskProgress').style.width = `${i}%`;
+      await sleep(30);
+    }
+
+    log('diskLog', `fs.writeFile() complete ✓`, 'done');
+    await sleep(200);
+
+    // Show saved file
+    document.getElementById('savedFileName').textContent = `uploads/${savedName}`;
+    document.getElementById('savedFileSize').textContent = `${formatBytes(fileSize)} | ${mimeType}`;
+    document.getElementById('savedFile').style.display = 'block';
+
+    log('diskLog', `req.file ready for handler`, 'done');
+
+    // Mark all chunk blocks green
+    for (let i = 0; i < displayChunks; i++) {
+      const hBlock = document.getElementById(`http-chunk-${i}`);
+      const mBlock = document.getElementById(`multer-chunk-${i}`);
+      hBlock.classList.remove('received');
+      hBlock.classList.add('saved');
+      mBlock.classList.remove('parsed');
+      mBlock.classList.add('saved');
+      await sleep(20);
+    }
+
+    startBtn.disabled = false;
+  }
+
+  // Real upload
+  document.getElementById('realForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const file = document.getElementById('realFile').files[0];
+    if (!file) return alert('Select a file first');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const resultEl = document.getElementById('realResult');
+    resultEl.style.display = 'block';
+    resultEl.textContent = 'Uploading...';
+
+    try {
+      const res = await fetch('/upload/single', { method: 'POST', body: formData });
+      const data = await res.json();
+      resultEl.textContent = JSON.stringify(data, null, 2);
+      resultEl.style.color = res.ok ? '#00ff88' : '#ff4444';
+    } catch (err) {
+      resultEl.textContent = 'Error: ' + err.message;
+      resultEl.style.color = '#ff4444';
+    }
+  });
+</script>
+
+</body>
+</html>

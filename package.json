@@ -1,0 +1,19 @@
+{
+  "name": "pocketschool-phase2",
+  "version": "1.0.0",
+  "description": "PocketSchool Phase 2 Express application",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.990.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "fastq": "^1.20.1",
+    "multer": "^2.0.2"
+  }
+}
